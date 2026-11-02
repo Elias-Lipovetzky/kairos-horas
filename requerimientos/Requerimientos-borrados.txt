@@ -1,0 +1,58 @@
+el registro es simple
+
+se estructura asi
+
+registro {
+	nombre del empleado
+	fecha
+	lugar
+	entrada puede ser nulo
+	salida puede ser nulo
+	total duracion en horas no puede ser nulo
+}
+
+ademas se agrega el dia de la semana cuando se muestra
+
+
+de los empleados se guarda esto
+
+empleado {
+	nombre
+	telefono
+}
+
+lugar {
+	nombre del lugar
+	direccion
+	dueño
+}
+
+dueño se guarda esto
+
+{
+	nombre 
+	telefono
+}
+
+
+de todo esto agrega ids Tambien
+
+
+Se requiere una base de datos postgres
+un front end en lo que quieras y backend Tambien
+
+va a estar todo en un docker compose con un proyx de por medio
+
+
+
+lo importante es que el que use la app pueda registrar horas en lugares a personas y modificarlas facilmente buscando o por lugar o por persona
+
+tiene que haber dos roles, uno de admin y otro de recursos humanos. el admin puede agregar personas y lugares, el de recursos humanos solo puede registrar y modificar horas
+
+de todo esto se tiene que poder exportar una tabla para mandar por mensaje asi los empleados pueden ver las horas que se le registraron
+
+Crear un documento de requerimientos especifico como documento y contrato para la empresa Kairos
+
+crear un manual de uso
+
+crear un manual tecnico en el readme
