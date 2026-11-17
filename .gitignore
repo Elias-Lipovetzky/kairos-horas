@@ -5,3 +5,5 @@ backups/
 test-results/
 .kairos-import-state.json
 .tools/
+__pycache__/
+*.pyc

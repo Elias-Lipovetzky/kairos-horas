@@ -1,0 +1,26 @@
+# Production override. The replacement removes the base file's public port 8080.
+# Requires Docker Compose >= 2.24.4.
+services:
+  proxy:
+    ports: !override
+      - '80:80'
+      - '443:443'
+    volumes:
+      - type: bind
+        source: /etc/letsencrypt
+        target: /etc/letsencrypt
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: /var/lib/kairos-acme
+        target: /var/www/certbot
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./deploy/nginx
+        target: /etc/nginx/kairos
+        read_only: true
+        bind:
+          create_host_path: false

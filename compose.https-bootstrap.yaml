@@ -1,0 +1,7 @@
+# Temporary third override: retain the existing HTTP port until HTTPS is verified.
+services:
+  proxy:
+    ports: !override
+      - '80:80'
+      - '443:443'
+      - '${APP_BIND_ADDRESS:-0.0.0.0}:${APP_PORT:-8080}:80'

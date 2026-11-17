@@ -178,9 +178,11 @@ acceso/recuperación. Las mutaciones requieren el encabezado del cliente y no ac
 navegador desde otro sitio. No se habilita CORS. Los enlaces de recuperación vencen a los 30 minutos
 y son de un solo uso. No se registran contraseñas ni tokens en auditoría.
 
-Al publicar en la segunda etapa se debe agregar HTTPS, configurar `COOKIE_SECURE=true`, `APP_URL`,
-SMTP y la operación de copias de seguridad. El HTTP local sirve para desarrollo y uso en un entorno
-de confianza.
+Para publicar kairoshoras.com en Vultr con el Nginx existente, Let's Encrypt y renovación
+automática, seguir [HTTPS en Vultr](docs/HTTPS-Vultr.md). El procedimiento conserva el volumen
+PostgreSQL, verifica HTTPS antes de activar cookies seguras y elimina la publicación de 8080 al
+finalizar. SMTP y la operación de copias de seguridad se configuran por separado. El HTTP local
+sigue disponible para desarrollo sin activar el override de producción.
 
 ## Pruebas
 
@@ -285,9 +287,9 @@ mientras la página permanece abierta. Cerrar o recargar puede perder la carga. 
 hasta 10.000 registros por archivo; para volúmenes superiores, reducir el período. Los listados se
 paginan de a 50 filas.
 
-Dominio, contratación de hosting, proveedor de correo, HTTPS y validación final en ese entorno
-corresponden a la segunda etapa. No están simulados ni se dan por configurados. El componente
-`public/components/brand.js` presenta el logo junto al texto «Herramienta de gestión», sin el
-antiguo chip HORAS. El SVG y el icono siguen la referencia de mayor resolución conservada en
+La configuración HTTPS para Vultr está preparada en el repositorio; su ejecución y validación final
+deben realizarse en el servidor siguiendo la guía. El proveedor de correo sigue pendiente. El
+componente `public/components/brand.js` presenta el logo junto al texto «Herramienta de gestión»,
+sin el antiguo chip HORAS. El SVG y el icono siguen la referencia de mayor resolución conservada en
 `public/assets/kairos-logo-reference.png`; las letras también son trazados vectoriales para no
 depender de fuentes instaladas.
