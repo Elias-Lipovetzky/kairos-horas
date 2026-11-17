@@ -49,3 +49,5 @@ CREATE TABLE IF NOT EXISTS login_attempts (
  key text PRIMARY KEY, attempts integer NOT NULL DEFAULT 0, resets_at timestamptz NOT NULL
 );
 INSERT INTO schema_versions(version) VALUES(1) ON CONFLICT DO NOTHING;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS registration_pending boolean NOT NULL DEFAULT false;
+INSERT INTO schema_versions(version) VALUES(2) ON CONFLICT DO NOTHING;

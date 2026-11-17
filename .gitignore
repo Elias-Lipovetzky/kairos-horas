@@ -3,3 +3,5 @@ node_modules/
 backups/
 *.log
 test-results/
+.kairos-import-state.json
+.tools/

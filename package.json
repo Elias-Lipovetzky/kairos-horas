@@ -6,8 +6,15 @@
   "scripts": {
     "start": "node --env-file-if-exists=.env server/index.js",
     "test": "node --test",
-    "check": "node --check server/index.js && node --check public/app.js",
+    "test:contract": "node --test test/contract.test.js test/live-contract.test.js",
+    "test:ui": "node --test test/ui.test.js",
+    "check": "node scripts/check-source.mjs",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "admin": "node --env-file-if-exists=.env server/admin.js"
+  },
+  "devDependencies": {
+    "prettier": "3.8.4"
   },
   "dependencies": {
     "exceljs": "4.4.0",

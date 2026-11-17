@@ -1,3 +1,6 @@
+# Preserve the original PostgreSQL volume when this project folder moves.
+name: herramientas
+
 services:
   db:
     image: postgres:17-alpine
@@ -8,7 +11,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      test: ['CMD-SHELL', 'pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB']
       interval: 5s
       timeout: 3s
       retries: 20
@@ -33,9 +36,14 @@ services:
   proxy:
     image: nginx:1.28-alpine
     ports:
-      - "${APP_BIND_ADDRESS:-0.0.0.0}:${APP_PORT:-8080}:80"
+      - '${APP_BIND_ADDRESS:-0.0.0.0}:${APP_PORT:-8080}:80'
     volumes:
-      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - type: bind
+        source: ./nginx.conf
+        target: /etc/nginx/conf.d/default.conf
+        read_only: true
+        bind:
+          create_host_path: false
     depends_on:
       - app
     restart: unless-stopped
