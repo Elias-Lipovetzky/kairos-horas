@@ -6,6 +6,15 @@ umask 077
 [[ $EUID -eq 0 ]] || { echo 'Run: sudo bash scripts/enable-https.sh account-email' >&2; exit 1; }
 email=${1:?Pass the email for the Let\'s Encrypt account}
 [[ "$email" == *@*.* ]] || { echo 'Invalid email.' >&2; exit 1; }
+shift
+project_hint=()
+if (($#)); then
+    [[ $# -eq 2 && "$1" == --project && "$2" =~ ^[a-z0-9][a-z0-9_-]*$ ]] || {
+        echo 'Usage: sudo bash scripts/enable-https.sh EMAIL [--project EXISTING_PROJECT]' >&2
+        exit 1
+    }
+    project_hint=("$2")
+fi
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 cd "$root"
 domain=kairoshoras.com
@@ -49,7 +58,7 @@ dig +short CAA "$domain"
 
 backup="/var/backups/kairos/https-$(date -u +%Y%m%dT%H%M%SZ)-$$"
 install -d -m 700 "$backup"
-project=$(python3 "$helper" snapshot "$root" "$backup")
+project=$(python3 "$helper" snapshot "$root" "$backup" "${project_hint[@]}")
 volume=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["volume"])' "$backup/state.json")
 echo "Existing project: $project; existing database volume: $volume"
 echo "Rollback: sudo bash scripts/rollback-https.sh $backup"

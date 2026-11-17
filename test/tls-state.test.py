@@ -58,11 +58,56 @@ class TlsStateTests(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 tls.verify_config(Path("/app"), "project", "original_data")
 
-    def test_missing_working_directory_does_not_match_unrelated_database(self):
-        candidate = {"Config": {"Labels": {}}, "Mounts": []}
-        with patch.object(tls, "command", side_effect=["some-id", json.dumps([candidate])]):
-            with self.assertRaises(RuntimeError):
+    def database(self, project="herramientas", directory="/old-checkout", volume="herramientas_postgres_data"):
+        return {"Id": "existing-db-id", "Config": {"Labels": {
+                    "com.docker.compose.project": project,
+                    "com.docker.compose.project.working_dir": directory}},
+                "Mounts": [{"Destination": "/var/lib/postgresql/data", "Type": "volume", "Name": volume}]}
+
+    def database_config(self, project="herramientas", volume="herramientas_postgres_data"):
+        return {"name": project, "services": {"db": {"volumes": [
+                    {"type": "volume", "source": "postgres_data", "target": "/var/lib/postgresql/data"}]}},
+                "volumes": {"postgres_data": {"name": volume}}}
+
+    def test_moved_checkout_matches_configured_project_and_existing_volume(self):
+        db = self.database()
+        config = json.dumps(self.database_config())
+        with patch.object(tls, "command", side_effect=["db-id", json.dumps([db]), config, config]):
+            state = tls.discover(Path("/new-checkout"))
+        self.assertEqual(state["project"], "herramientas")
+        self.assertEqual(state["volume"], "herramientas_postgres_data")
+        self.assertEqual(state["db_id"], "existing-db-id")
+
+    def test_explicit_project_supports_old_paths_and_retains_volume_guard(self):
+        db = self.database(project="legacy", volume="legacy_postgres_data")
+        config = json.dumps(self.database_config("legacy", "legacy_postgres_data"))
+        with patch.object(tls, "command", side_effect=["db-id", json.dumps([db]), config]):
+            state = tls.discover(Path("/new-checkout"), "legacy")
+        self.assertEqual(state["project"], "legacy")
+        wrong = json.dumps(self.database_config("legacy", "new_empty_volume"))
+        with patch.object(tls, "command", side_effect=["db-id", json.dumps([db]), wrong]):
+            with self.assertRaisesRegex(RuntimeError, "volume differs"):
+                tls.discover(Path("/new-checkout"), "legacy")
+
+    def test_missing_path_does_not_select_an_unrelated_database(self):
+        db = self.database(project="other-app", directory="", volume="other_data")
+        config = json.dumps(self.database_config())
+        with patch.object(tls, "command", side_effect=["db-id", json.dumps([db]), config]):
+            with self.assertRaisesRegex(RuntimeError, "Running database projects: other-app"):
                 tls.discover(Path.cwd())
+
+    def test_ambiguous_project_is_rejected_instead_of_choosing_first_database(self):
+        containers = [self.database(), self.database()]
+        with patch.object(tls, "command", side_effect=["db-id1 db-id2", json.dumps(containers)]):
+            with self.assertRaisesRegex(RuntimeError, "Cannot identify one running db"):
+                tls.discover(Path("/new-checkout"), "herramientas")
+
+    def test_matching_path_keeps_original_project_even_if_folder_name_changed(self):
+        root = Path("/current-checkout").resolve()
+        db = self.database(project="legacy", directory=str(root), volume="legacy_postgres_data")
+        config = json.dumps(self.database_config("legacy", "legacy_postgres_data"))
+        with patch.object(tls, "command", side_effect=["db-id", json.dumps([db]), config]):
+            self.assertEqual(tls.discover(root)["project"], "legacy")
 
     def test_renewal_hook_scopes_reload_and_stops_after_failed_config_test(self):
         with tempfile.TemporaryDirectory() as directory:

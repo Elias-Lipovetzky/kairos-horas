@@ -64,19 +64,55 @@ def compose(root, project, args):
     return command(["docker", "compose", "--project-directory", str(root), "-p", project, *args], cwd=root)
 
 
-def discover(root):
+def expected_volume(config):
+    mount = next((m for m in config["services"]["db"].get("volumes", [])
+                  if m.get("target") == "/var/lib/postgresql/data"), None)
+    if not mount or mount.get("type", "volume") != "volume":
+        raise RuntimeError("Expected PostgreSQL to use a named volume in Compose")
+    name = config.get("volumes", {}).get(mount["source"], {}).get("name")
+    if not name:
+        raise RuntimeError("Cannot resolve the PostgreSQL volume name from Compose")
+    return name
+
+
+def discover(root, project_hint=None):
     ids = command(["docker", "ps", "-q", "--filter", "label=com.docker.compose.service=db"]).split()
     containers = json.loads(command(["docker", "inspect", *ids])) if ids else []
-    candidates = [c for c in containers if
-                  c["Config"]["Labels"].get("com.docker.compose.project.working_dir") and
-                  Path(c["Config"]["Labels"]["com.docker.compose.project.working_dir"]).resolve() == root]
+    if project_hint:
+        if not re.fullmatch(r"[a-z0-9][a-z0-9_-]*", project_hint):
+            raise RuntimeError("Invalid Compose project name")
+        project = project_hint
+    else:
+        candidates = [c for c in containers if
+                      c["Config"]["Labels"].get("com.docker.compose.project") and
+                      c["Config"]["Labels"].get("com.docker.compose.project.working_dir") and
+                      Path(c["Config"]["Labels"]["com.docker.compose.project.working_dir"]).resolve() == root]
+        if len(candidates) == 1:
+            project = candidates[0]["Config"]["Labels"]["com.docker.compose.project"]
+        else:
+            # Docker retains creation-time paths after a checkout moves. The configured project
+            # is a safe fallback only when its running DB mounts the SAME resolved named volume.
+            config = json.loads(command(["docker", "compose", "--project-directory", str(root),
+                                         "config", "--format", "json"], cwd=root))
+            project = config["name"]
+    candidates = [c for c in containers
+                  if c["Config"]["Labels"].get("com.docker.compose.project") == project]
     if len(candidates) != 1:
-        raise RuntimeError("Cannot uniquely identify this checkout's running database; nothing was changed")
+        available = sorted({c["Config"]["Labels"].get("com.docker.compose.project", "unknown")
+                            for c in containers})
+        raise RuntimeError(f"Cannot identify one running db for project '{project}'. "
+                           f"Running database projects: {', '.join(available) or 'none'}. "
+                           "Retry enable-https.sh EMAIL --project NAME using the existing project's name. "
+                           "Do not start a new empty project or delete volumes.")
     db = candidates[0]
     volume = [m for m in db["Mounts"] if m["Destination"] == "/var/lib/postgresql/data"]
     if len(volume) != 1 or volume[0]["Type"] != "volume":
         raise RuntimeError("Expected an existing PostgreSQL named volume")
-    return {"root": str(root), "project": db["Config"]["Labels"]["com.docker.compose.project"],
+    config = json.loads(compose(root, project, ["config", "--format", "json"]))
+    if volume[0]["Name"] != expected_volume(config):
+        raise RuntimeError("The running database volume differs from this project's Compose configuration; "
+                           "nothing was changed. Check the project name and existing volume configuration.")
+    return {"root": str(root), "project": project,
             "db_id": db["Id"], "volume": volume[0]["Name"]}
 
 
@@ -106,8 +142,8 @@ def escaped_dollars(value):
     return value
 
 
-def snapshot(root, backup):
-    state = discover(root)
+def snapshot(root, backup, project_hint=None):
+    state = discover(root, project_hint)
     project = state["project"]
     config = json.loads(compose(root, project, ["config", "--format", "json"]))
     # Pin rollback to the actual currently-running images, without rebuilding or pulling.
@@ -147,7 +183,7 @@ def verify_config(root, project, volume, bootstrap=False):
 
 def verify_live(root, backup):
     before = json.loads((backup / "state.json").read_text())
-    current = discover(root)
+    current = discover(root, before["project"])
     if current["db_id"] != before["db_id"] or current["volume"] != before["volume"]:
         raise RuntimeError("The database container or volume changed unexpectedly")
     for service in ("db", "app", "proxy"):
@@ -195,7 +231,7 @@ def main():
         changes = dict(value.split("=", 1) for value in sys.argv[3:])
         atomic_write(root / ".env", edit_env((root / ".env").read_text(), changes))
     elif action == "snapshot":
-        state = snapshot(root, Path(sys.argv[3]))
+        state = snapshot(root, Path(sys.argv[3]), sys.argv[4] if len(sys.argv) > 4 else None)
         print(state["project"])
     elif action == "verify-config":
         verify_config(root, sys.argv[3], sys.argv[4], "--bootstrap" in sys.argv)

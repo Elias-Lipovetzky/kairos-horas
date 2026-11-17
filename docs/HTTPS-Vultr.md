@@ -84,6 +84,25 @@ inside .env, preserving other lines and the file owner. It does not modify datab
 Normal docker compose commands subsequently use the saved production override and existing project.
 The old APP_PORT=8080 value is not used to publish ports in the final production override.
 
+If setup cannot identify the running database, list the existing projects without changing them:
+
+```bash
+sudo docker ps --filter label=com.docker.compose.service=db --format 'table {{.Names}}\t{{.Label "com.docker.compose.project"}}\t{{.Status}}'
+```
+
+Older containers can retain their original checkout path in Docker labels. Setup first checks that
+path, then the configured Compose project. It always verifies the running named volume matches the
+rendered Compose configuration. If the existing project has another name, specify the name shown
+above. For example, for project herramientas:
+
+```bash
+sudo bash scripts/enable-https.sh YOUR_LETS_ENCRYPT_ACCOUNT_EMAIL --project herramientas
+```
+
+This option selects an existing running project; it does not create or reset a database. If no
+database is running, start the previously existing deployment before retrying. Do not create a new
+project or remove volumes to work around this guard.
+
 ## Cloudflare after HTTPS is verified
 
 You can re-enable the orange Proxied setting for the A record. Select SSL/TLS encryption mode Full
