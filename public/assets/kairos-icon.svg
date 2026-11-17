@@ -1,0 +1,19 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="400 -80 900 900"
+  role="img"
+  aria-labelledby="title"
+>
+  <title id="title">Kairos</title>
+  <g fill="none" stroke="#2253a6" stroke-linecap="round">
+    <path
+      stroke-width="10"
+      d="M724 92v46 M599 123l20 38 M497 220l33 21 M448 366h50 M498 508l31-18 M604 619l20-38 M730 621v46"
+    />
+    <path stroke-width="6" d="M528 376l477-38 M461 504l389-206 M704 601l44-54" />
+  </g>
+  <path
+    fill="#2253a6"
+    d="M741 56h97l-7 293 327-300-270 336 350 312h-128L832 423l2 274h-88l-1-332z"
+  />
+</svg>

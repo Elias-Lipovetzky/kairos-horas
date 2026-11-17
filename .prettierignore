@@ -1,0 +1,9 @@
+node_modules/
+.tools/
+.git/
+.env
+test-results/
+backups/
+*.docx
+*.jpg
+*.png

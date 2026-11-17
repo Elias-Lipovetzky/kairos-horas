@@ -1,0 +1,2234 @@
+{
+  "openapi": "3.1.1",
+  "info": {
+    "title": "Kairos · API REST",
+    "version": "1.2.0",
+    "description": "Contrato de la API existente, independiente del backend y del frontend. Base /api sin prefijo de versión en las rutas actuales. JSON en UTF-8. Duraciones en minutos enteros; fechas de trabajo en Argentina. Los clientes deben ignorar campos adicionales de respuestas y no interpretar el texto de message como un código. Todas las mutaciones requieren X-Kairos-Client: web. La autenticación usa una cookie de sesión HttpOnly."
+  },
+  "servers": [
+    {
+      "url": "/api",
+      "description": "Mismo origen del cliente; también puede utilizarse una URL absoluta al cambiar de servidor"
+    }
+  ],
+  "security": [
+    {
+      "sessionCookie": []
+    }
+  ],
+  "tags": [
+    {
+      "name": "Servicio"
+    },
+    {
+      "name": "Acceso"
+    },
+    {
+      "name": "Catálogo"
+    },
+    {
+      "name": "Usuarios"
+    },
+    {
+      "name": "Horas"
+    },
+    {
+      "name": "Auditoría"
+    },
+    {
+      "name": "Notificaciones"
+    },
+    {
+      "name": "Exportación"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "operationId": "getHealth",
+        "tags": ["Servicio"],
+        "summary": "Comprobar servicio y conexión a la base",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Servicio disponible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      }
+    },
+    "/config": {
+      "get": {
+        "operationId": "getConfig",
+        "tags": ["Servicio"],
+        "summary": "Consultar disponibilidad de recuperación por correo",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Configuración pública sin secretos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicConfig"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/login": {
+      "post": {
+        "operationId": "login",
+        "tags": ["Acceso"],
+        "summary": "Abrir sesión",
+        "security": [],
+        "description": "Credenciales en el cuerpo JSON. Devuelve la cookie kairos con Path=/, HttpOnly, SameSite=Strict y Max-Age. Secure depende del despliegue HTTPS. No devuelve tokens en JSON.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ClientHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Sesión iniciada",
+            "headers": {
+              "Set-Cookie": {
+                "description": "Cookie kairos; tratar el valor como secreto opaco",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionUser"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      }
+    },
+    "/forgot-password": {
+      "post": {
+        "operationId": "requestPasswordReset",
+        "tags": ["Acceso"],
+        "summary": "Solicitar recuperación por correo",
+        "security": [],
+        "description": "200 no confirma la existencia de la cuenta ni garantiza entrega. Si SMTP no está configurado devuelve 503. El enlace contiene un token de un solo uso y vence a los 30 minutos.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ClientHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmailInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Message"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/MailUnavailable"
+          }
+        }
+      }
+    },
+    "/reset-password": {
+      "post": {
+        "operationId": "resetPassword",
+        "tags": ["Acceso"],
+        "summary": "Restablecer contraseña con enlace",
+        "security": [],
+        "description": "Consume el token, invalida otros enlaces de la cuenta y cierra sus sesiones. Token inválido, vencido o utilizado: 400.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ClientHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordResetInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Message"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      }
+    },
+    "/me": {
+      "get": {
+        "operationId": "getCurrentUser",
+        "tags": ["Acceso"],
+        "summary": "Consultar usuario de la sesión",
+        "responses": {
+          "200": {
+            "description": "Usuario actual",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionUser"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      }
+    },
+    "/logout": {
+      "post": {
+        "operationId": "logout",
+        "tags": ["Acceso"],
+        "summary": "Cerrar sesión y retirar cookie",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ClientHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sesión cerrada",
+            "headers": {
+              "Set-Cookie": {
+                "description": "Cookie kairos vacía con Max-Age=0",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      }
+    },
+    "/catalog": {
+      "get": {
+        "operationId": "getCatalog",
+        "tags": ["Catálogo"],
+        "summary": "Consultar empleados, lugares y dueños, incluidos inactivos",
+        "responses": {
+          "200": {
+            "description": "Catálogo completo sin paginación",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Catalog"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      }
+    },
+    "/catalog/{entity}": {
+      "post": {
+        "operationId": "createCatalogEntry",
+        "tags": ["Catálogo"],
+        "summary": "Crear empleado, lugar o dueño",
+        "x-roles": ["admin"],
+        "description": "El cuerpo depende de entity: employees usa EmployeeInput; owners usa OwnerInput; places usa PlaceInput. DNI se normaliza quitando espacios, puntos y guiones y debe ser único. Un lugar requiere al menos un dueño, exactamente uno principal y dueños distintos y activos. Los IDs de respuesta son opacos.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ClientHeader"
+          },
+          {
+            "$ref": "#/components/parameters/Entity"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/EmployeeInput"
+                  },
+                  {
+                    "$ref": "#/components/schemas/OwnerInput"
+                  },
+                  {
+                    "$ref": "#/components/schemas/PlaceInput"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Entidad creada; el esquema depende de entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/Employee"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Owner"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Place"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      }
+    },
+    "/catalog/{entity}/{id}": {
+      "put": {
+        "operationId": "updateCatalogEntry",
+        "tags": ["Catálogo"],
+        "summary": "Editar o desactivar empleado, lugar o dueño",
+        "x-roles": ["admin"],
+        "description": "Envía todos los campos de negocio de la entidad. active omitido conserva su valor; al crear se presume true. No elimina su historia. Un dueño no puede desactivarse mientras esté asociado a lugares activos.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ClientHeader"
+          },
+          {
+            "$ref": "#/components/parameters/Entity"
+          },
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/EmployeeInput"
+                  },
+                  {
+                    "$ref": "#/components/schemas/OwnerInput"
+                  },
+                  {
+                    "$ref": "#/components/schemas/PlaceInput"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Entidad actualizada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/Employee"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Owner"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Place"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      }
+    },
+    "/users": {
+      "get": {
+        "operationId": "listUsers",
+        "tags": ["Usuarios"],
+        "summary": "Listar cuentas sin credenciales",
+        "x-roles": ["admin"],
+        "responses": {
+          "200": {
+            "description": "Cuentas activas e inactivas",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/User"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createUser",
+        "tags": ["Usuarios"],
+        "summary": "Crear cuenta",
+        "x-roles": ["admin"],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ClientHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserCreateInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Cuenta creada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      }
+    },
+    "/users/{id}": {
+      "put": {
+        "operationId": "updateUser",
+        "tags": ["Usuarios"],
+        "summary": "Editar cuenta, rol, estado o contraseña",
+        "x-roles": ["admin"],
+        "description": "No permite retirar al último administrador activo. Cambiar rol, desactivar o cambiar contraseña invalida las sesiones. password omitido conserva la contraseña.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ClientHeader"
+          },
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserUpdateInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Cuenta actualizada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      }
+    },
+    "/records": {
+      "get": {
+        "operationId": "listRecords",
+        "tags": ["Horas"],
+        "summary": "Consultar registros activos con filtros y total",
+        "description": "Página basada en cero, 50 filas por página. count y minutes corresponden a todos los resultados filtrados. Excluye borrados lógicamente. sort permite fecha o nombre de empleado/lugar en ambos sentidos, con ID como desempate estable. Por defecto fecha descendente. No es una instantánea entre páginas concurrentes.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/EmployeeFilter"
+          },
+          {
+            "$ref": "#/components/parameters/PlaceFilter"
+          },
+          {
+            "$ref": "#/components/parameters/From"
+          },
+          {
+            "$ref": "#/components/parameters/To"
+          },
+          {
+            "$ref": "#/components/parameters/Page"
+          },
+          {
+            "$ref": "#/components/parameters/Sort"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Página y totales",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      }
+    },
+    "/records/batch": {
+      "post": {
+        "operationId": "createRecordBatch",
+        "tags": ["Horas"],
+        "summary": "Guardar lote de 1 a 100 filas en una transacción",
+        "description": "Errores bloqueantes: 400 con errors y row basado en cero. Advertencias: 409 con warnings y warning_token; reenviar el mismo lote y submission_id con ese token para confirmar. Si los datos relacionados cambian pueden pedirse nuevas advertencias. No hay guardado parcial. Repetir una operación ya guardada con el mismo submission_id, usuario y filas normalizadas devuelve los mismos ids. Reutilizarlo con otro contenido/usuario da 409 con reset_submission=true. No es un identificador de negocio ni se calcula por nombres.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ClientHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Lote guardado o reintento de la misma operación",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      }
+    },
+    "/records/{id}": {
+      "put": {
+        "operationId": "updateRecord",
+        "tags": ["Horas"],
+        "summary": "Corregir registro con control de versión",
+        "description": "Requiere version leída en el registro y sus datos de negocio completos. Versión obsoleta: 409. Las advertencias usan 409 y warning_token, igual que el lote, sin submission_id. La duración calculada prevalece si se envían ambos horarios. Guarda auditoría y notificaciones.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ClientHeader"
+          },
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordUpdateInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Message"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteRecord",
+        "tags": ["Horas"],
+        "summary": "Eliminar lógicamente con control de versión",
+        "description": "Requiere cuerpo JSON con version. El registro deja de aparecer en consultas y exportaciones; su auditoría permanece. Una segunda eliminación devuelve 404. Versión obsoleta: 409.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ClientHeader"
+          },
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Message"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      }
+    },
+    "/records/{id}/history": {
+      "get": {
+        "operationId": "getRecordHistory",
+        "tags": ["Auditoría"],
+        "summary": "Consultar historial, incluso de registros eliminados",
+        "description": "Accesible para admin y rrhh. Eventos más recientes primero. Un UUID sin historial devuelve un arreglo vacío.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Historial completo del registro",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RecordAuditEvent"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      }
+    },
+    "/audit": {
+      "get": {
+        "operationId": "listAuditEvents",
+        "tags": ["Auditoría"],
+        "summary": "Consultar historial general",
+        "x-roles": ["admin"],
+        "description": "Arreglo de hasta 50 eventos por página, más recientes primero por defecto; sort=date_asc invierte el orden. No devuelve count. Las instantáneas son informativas y pueden incluir campos adicionales; no se usan como payloads de escritura.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Page"
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["date_desc", "date_asc"],
+              "default": "date_desc"
+            },
+            "description": "Orden cronológico de los eventos antes de paginar."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Página de eventos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "maxItems": 50,
+                  "items": {
+                    "$ref": "#/components/schemas/AuditEvent"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      }
+    },
+    "/notifications": {
+      "get": {
+        "operationId": "listNotifications",
+        "tags": ["Notificaciones"],
+        "summary": "Consultar cola con filtros combinables",
+        "x-roles": ["admin"],
+        "description": "Página basada en cero, 50 filas, orden más reciente primero. from/to se aplican a la fecha del evento en Argentina, no al día trabajado. Puede incluir registros eliminados. Un cambio puede originar una notificación por acción y otras por advertencias. Los nombres y filtros de empleado/lugar corresponden al registro relacionado actual; las instantáneas conservan el cambio original.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Page"
+          },
+          {
+            "$ref": "#/components/parameters/EmployeeFilter"
+          },
+          {
+            "$ref": "#/components/parameters/PlaceFilter"
+          },
+          {
+            "$ref": "#/components/parameters/From"
+          },
+          {
+            "$ref": "#/components/parameters/To"
+          },
+          {
+            "name": "user_id",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/Uuid"
+            }
+          },
+          {
+            "name": "reason",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/NotificationReason"
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": ["pending", "reviewed"]
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Sort"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Página de notificaciones",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      }
+    },
+    "/notifications/{id}/review": {
+      "post": {
+        "operationId": "reviewNotification",
+        "tags": ["Notificaciones"],
+        "summary": "Marcar una notificación como revisada",
+        "x-roles": ["admin"],
+        "description": "Repetir la operación no altera las horas ni el historial. La implementación actual devuelve ok=true incluso si el identificador decimal no existe.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ClientHeader"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/DecimalId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Solicitud procesada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Ok"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      }
+    },
+    "/export/{format}": {
+      "get": {
+        "operationId": "exportRecords",
+        "tags": ["Exportación"],
+        "summary": "Descargar Excel o PDF de los registros filtrados",
+        "description": "Mismos filtros inclusivos y exclusión de borrados que GET /records. Sin paginación. Más de 10.000 registros: 400. Incluye detalle y total que puede superar las 24 horas. format determina el tipo de archivo; los bytes exactos, tipografía y diseño no forman parte de la compatibilidad REST.",
+        "parameters": [
+          {
+            "name": "format",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": ["xlsx", "pdf"]
+            }
+          },
+          {
+            "$ref": "#/components/parameters/EmployeeFilter"
+          },
+          {
+            "$ref": "#/components/parameters/PlaceFilter"
+          },
+          {
+            "$ref": "#/components/parameters/From"
+          },
+          {
+            "$ref": "#/components/parameters/To"
+          },
+          {
+            "$ref": "#/components/parameters/Sort"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Archivo descargable según format",
+            "headers": {
+              "Content-Disposition": {
+                "description": "Archivo adjunto con nombre basado en los filtros aplicados: empleado, lugar y período ddmm, sin año. Ejemplo: kairos-horas-Mariela-0111-al-0711.xlsx. Sin filtros: kairos-horas.pdf o .xlsx. filename ASCII y filename* UTF-8 conservan compatibilidad y acentos.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      }
+    },
+    "/signup": {
+      "post": {
+        "operationId": "signup",
+        "tags": ["Acceso"],
+        "summary": "Solicitar una cuenta de Recursos Humanos",
+        "security": [],
+        "description": "Crea una cuenta rrhh inactiva con registration_pending=true, sin iniciar sesion ni enviar correo. El administrador debe activarla desde Usuarios. El cliente no puede elegir rol ni activar la cuenta; esos campos adicionales se ignoran. Solicitudes limitadas por IP y correo.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ClientHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignupInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Message"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerError"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "sessionCookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "kairos",
+        "description": "Sesión opaca creada por POST /login. No es un JWT ni una credencial de integración entre servicios. Debe conservarse el intercambio de sesión o agregarse un adaptador durante una migración."
+      }
+    },
+    "parameters": {
+      "ClientHeader": {
+        "name": "X-Kairos-Client",
+        "in": "header",
+        "required": true,
+        "description": "Encabezado obligatorio en las mutaciones, incluidas las de acceso público. El navegador también debe enviar una solicitud del mismo origen; no hay CORS habilitado.",
+        "schema": {
+          "type": "string",
+          "const": "web"
+        }
+      },
+      "Entity": {
+        "name": "entity",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "enum": ["employees", "places", "owners"]
+        }
+      },
+      "Id": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "$ref": "#/components/schemas/Uuid"
+        }
+      },
+      "EmployeeFilter": {
+        "name": "employee_id",
+        "in": "query",
+        "schema": {
+          "$ref": "#/components/schemas/Uuid"
+        }
+      },
+      "PlaceFilter": {
+        "name": "place_id",
+        "in": "query",
+        "schema": {
+          "$ref": "#/components/schemas/Uuid"
+        }
+      },
+      "From": {
+        "name": "from",
+        "in": "query",
+        "description": "Fecha inicial incluida. En registros y exportaciones no debe ser posterior a to.",
+        "schema": {
+          "type": "string",
+          "format": "date"
+        }
+      },
+      "To": {
+        "name": "to",
+        "in": "query",
+        "description": "Fecha final incluida.",
+        "schema": {
+          "type": "string",
+          "format": "date"
+        }
+      },
+      "Page": {
+        "name": "page",
+        "in": "query",
+        "schema": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0
+        },
+        "description": "Índice de página, empezando en cero. Tamaño fijo de 50."
+      },
+      "Sort": {
+        "name": "sort",
+        "in": "query",
+        "required": false,
+        "description": "Orden del listado completo, anterior a la paginación. Registros: fecha trabajada. Notificaciones: instante del evento. Omisión: date_desc, salvo exportación que conserva empleado/fecha/lugar.",
+        "schema": {
+          "type": "string",
+          "enum": [
+            "date_desc",
+            "date_asc",
+            "employee_asc",
+            "employee_desc",
+            "place_asc",
+            "place_desc"
+          ]
+        }
+      }
+    },
+    "responses": {
+      "Message": {
+        "description": "Operación completada",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Message"
+            }
+          }
+        }
+      },
+      "BadRequest": {
+        "description": "Datos inválidos o regla bloqueante; errors puede señalar filas del lote",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "Falta sesión, venció o las credenciales no son válidas",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "Permisos insuficientes o encabezado/origen de cliente inválido",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "Entidad o registro no encontrado",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            }
+          }
+        }
+      },
+      "Conflict": {
+        "description": "DNI/correo repetido, versión obsoleta, advertencias a confirmar o reutilización incompatible del submission_id; distinguir por warnings/warning_token y reset_submission, no por el texto de message",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            }
+          }
+        }
+      },
+      "RateLimited": {
+        "description": "Límite de intentos; esperar 15 minutos antes de reintentar",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            }
+          }
+        }
+      },
+      "MailUnavailable": {
+        "description": "Recuperación por correo no configurada; las demás operaciones siguen disponibles",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            }
+          }
+        }
+      },
+      "ServerError": {
+        "description": "Fallo interno sin detalles sensibles; un lote con resultado incierto se reintenta conservando submission_id",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            }
+          }
+        }
+      },
+      "PayloadTooLarge": {
+        "description": "Cuerpo JSON superior al l?mite de 512 KiB",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "Uuid": {
+        "type": "string",
+        "format": "uuid",
+        "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+      },
+      "DecimalId": {
+        "type": "string",
+        "pattern": "^[0-9]+$",
+        "description": "Entero grande serializado como cadena decimal; no convertir a Number sin controlar precisión."
+      },
+      "Name": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200
+      },
+      "OptionalText": {
+        "type": "string",
+        "maxLength": 200,
+        "default": ""
+      },
+      "Password": {
+        "type": "string",
+        "minLength": 12,
+        "maxLength": 200,
+        "writeOnly": true
+      },
+      "Role": {
+        "type": "string",
+        "enum": ["admin", "rrhh"]
+      },
+      "Minutes": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 2147483647,
+        "description": "Minutos enteros positivos. Más de 540 minutos advierte por registro; no se rechaza por esa regla."
+      },
+      "Clock": {
+        "type": "string",
+        "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$",
+        "description": "Hora local del día trabajado, HH:mm."
+      },
+      "NullableClock": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/Clock"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "WarningReason": {
+        "type": "string",
+        "enum": ["long_duration", "duplicate", "overlap"]
+      },
+      "NotificationReason": {
+        "type": "string",
+        "enum": ["create", "update", "delete", "long_duration", "duplicate", "overlap"]
+      },
+      "Ok": {
+        "type": "object",
+        "required": ["ok"],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "const": true
+          }
+        }
+      },
+      "Message": {
+        "type": "object",
+        "required": ["message"],
+        "properties": {
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "PublicConfig": {
+        "type": "object",
+        "required": ["recoveryAvailable"],
+        "properties": {
+          "recoveryAvailable": {
+            "type": "boolean"
+          }
+        }
+      },
+      "SessionUser": {
+        "type": "object",
+        "required": ["id", "name", "email", "role"],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "role": {
+            "$ref": "#/components/schemas/Role"
+          },
+          "active": {
+            "type": "boolean"
+          }
+        }
+      },
+      "User": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SessionUser"
+          },
+          {
+            "type": "object",
+            "required": ["active"],
+            "properties": {
+              "registration_pending": {
+                "type": "boolean",
+                "description": "Indica solicitud de acceso pendiente; el administrador la aprueba activando la cuenta."
+              }
+            }
+          }
+        ]
+      },
+      "EmailInput": {
+        "type": "object",
+        "required": ["email"],
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "maxLength": 200
+          }
+        }
+      },
+      "LoginInput": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/EmailInput"
+          },
+          {
+            "type": "object",
+            "required": ["password"],
+            "properties": {
+              "password": {
+                "type": "string",
+                "maxLength": 200,
+                "writeOnly": true
+              }
+            }
+          }
+        ]
+      },
+      "PasswordResetInput": {
+        "type": "object",
+        "required": ["token", "password"],
+        "properties": {
+          "token": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "writeOnly": true
+          },
+          "password": {
+            "$ref": "#/components/schemas/Password"
+          }
+        }
+      },
+      "UserUpdateInput": {
+        "type": "object",
+        "required": ["name", "email", "role", "active"],
+        "properties": {
+          "name": {
+            "$ref": "#/components/schemas/Name"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "maxLength": 200
+          },
+          "role": {
+            "$ref": "#/components/schemas/Role"
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "password": {
+            "$ref": "#/components/schemas/Password"
+          }
+        }
+      },
+      "UserCreateInput": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/UserUpdateInput"
+          },
+          {
+            "type": "object",
+            "required": ["password"]
+          }
+        ]
+      },
+      "EmployeeInput": {
+        "type": "object",
+        "required": ["name", "dni"],
+        "properties": {
+          "name": {
+            "$ref": "#/components/schemas/Name"
+          },
+          "dni": {
+            "type": "string",
+            "minLength": 6,
+            "maxLength": 200,
+            "pattern": "^[0-9.\\s-]+$",
+            "description": "Tras quitar puntos, espacios y guiones debe contener de 6 a 12 dígitos; único incluso para inactivos."
+          },
+          "phone": {
+            "$ref": "#/components/schemas/OptionalText"
+          },
+          "active": {
+            "type": "boolean",
+            "default": true
+          }
+        }
+      },
+      "OwnerInput": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": {
+            "$ref": "#/components/schemas/Name"
+          },
+          "phone": {
+            "$ref": "#/components/schemas/OptionalText"
+          },
+          "active": {
+            "type": "boolean",
+            "default": true
+          }
+        }
+      },
+      "PlaceOwner": {
+        "type": "object",
+        "required": ["owner_id", "is_primary"],
+        "properties": {
+          "owner_id": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "is_primary": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string",
+            "description": "Presente en el catálogo; no es obligatorio en escritura."
+          }
+        }
+      },
+      "PlaceInput": {
+        "type": "object",
+        "required": ["name", "owners"],
+        "properties": {
+          "name": {
+            "$ref": "#/components/schemas/Name"
+          },
+          "address": {
+            "$ref": "#/components/schemas/OptionalText"
+          },
+          "active": {
+            "type": "boolean",
+            "default": true
+          },
+          "owners": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/PlaceOwner"
+            },
+            "description": "Exactamente uno principal, IDs distintos, dueños activos para un lugar activo."
+          }
+        }
+      },
+      "Employee": {
+        "type": "object",
+        "required": ["id", "name", "dni", "phone", "active"],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "dni": {
+            "type": "string",
+            "pattern": "^[0-9]{6,12}$"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "active": {
+            "type": "boolean"
+          }
+        }
+      },
+      "Owner": {
+        "type": "object",
+        "required": ["id", "name", "phone", "active"],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "active": {
+            "type": "boolean"
+          }
+        }
+      },
+      "Place": {
+        "type": "object",
+        "required": ["id", "name", "address", "active", "owners"],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "owners": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlaceOwner"
+            }
+          }
+        }
+      },
+      "Catalog": {
+        "type": "object",
+        "required": ["employees", "places", "owners"],
+        "properties": {
+          "employees": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Employee"
+            }
+          },
+          "places": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Place"
+            }
+          },
+          "owners": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Owner"
+            }
+          }
+        }
+      },
+      "RecordInput": {
+        "type": "object",
+        "required": ["employee_id", "place_id", "date"],
+        "properties": {
+          "employee_id": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "place_id": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "description": "Día trabajado, nunca futuro según America/Argentina/Buenos_Aires."
+          },
+          "start_time": {
+            "$ref": "#/components/schemas/NullableClock"
+          },
+          "end_time": {
+            "$ref": "#/components/schemas/NullableClock"
+          },
+          "minutes": {
+            "type": "integer",
+            "description": "Minutos obligatorios y positivos en la modalidad solo duraci?n. Con ambos horarios el servidor ignora este valor, incluso si es cero, y calcula el total."
+          }
+        },
+        "anyOf": [
+          {
+            "required": ["minutes"],
+            "properties": {
+              "start_time": {
+                "type": "null"
+              },
+              "end_time": {
+                "type": "null"
+              },
+              "minutes": {
+                "$ref": "#/components/schemas/Minutes"
+              }
+            }
+          },
+          {
+            "required": ["start_time", "end_time"],
+            "properties": {
+              "start_time": {
+                "$ref": "#/components/schemas/Clock"
+              },
+              "end_time": {
+                "$ref": "#/components/schemas/Clock"
+              }
+            }
+          }
+        ],
+        "description": "Solo duración: minutes obligatorio y horarios nulos u omitidos. Con horarios: ambos obligatorios, salida posterior a entrada del mismo día; el servidor calcula minutes e ignora el total enviado. No descuenta descansos ni aplica redondeos."
+      },
+      "BatchInput": {
+        "type": "object",
+        "required": ["submission_id", "records"],
+        "properties": {
+          "submission_id": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "records": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/RecordInput"
+            }
+          },
+          "warning_token": {
+            "type": "string",
+            "description": "Valor opaco obtenido de un 409; no debe generarlo el cliente."
+          }
+        }
+      },
+      "BatchResult": {
+        "type": "object",
+        "required": ["ids", "message"],
+        "properties": {
+          "ids": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/Uuid"
+            }
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "RecordUpdateInput": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/RecordInput"
+          },
+          {
+            "type": "object",
+            "required": ["version"],
+            "properties": {
+              "version": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "warning_token": {
+                "type": "string"
+              }
+            }
+          }
+        ]
+      },
+      "DeleteInput": {
+        "type": "object",
+        "required": ["version"],
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "Record": {
+        "type": "object",
+        "required": [
+          "id",
+          "employee_id",
+          "place_id",
+          "date",
+          "start_time",
+          "end_time",
+          "minutes",
+          "version",
+          "employee_name",
+          "dni",
+          "place_name"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "employee_id": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "place_id": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "start_time": {
+            "$ref": "#/components/schemas/NullableClock"
+          },
+          "end_time": {
+            "$ref": "#/components/schemas/NullableClock"
+          },
+          "minutes": {
+            "$ref": "#/components/schemas/Minutes"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "employee_name": {
+            "type": "string"
+          },
+          "dni": {
+            "type": "string"
+          },
+          "place_name": {
+            "type": "string"
+          },
+          "created_by": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "deleted_at": {
+            "type": ["string", "null"],
+            "format": "date-time"
+          },
+          "deleted_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "RecordPage": {
+        "type": "object",
+        "required": ["records", "count", "minutes", "page"],
+        "properties": {
+          "records": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "$ref": "#/components/schemas/Record"
+            }
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "minutes": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Total de minutos del filtro completo, no solo de la página."
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "Warning": {
+        "type": "object",
+        "required": ["reason", "message"],
+        "properties": {
+          "reason": {
+            "$ref": "#/components/schemas/WarningReason"
+          },
+          "message": {
+            "type": "string"
+          },
+          "row": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 99,
+            "description": "Índice de fila basado en cero; solo en lotes."
+          }
+        }
+      },
+      "RowError": {
+        "type": "object",
+        "required": ["row", "message"],
+        "properties": {
+          "row": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 99
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "ApiError": {
+        "type": "object",
+        "required": ["message"],
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RowError"
+            },
+            "minItems": 1
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Warning"
+            },
+            "minItems": 1
+          },
+          "warning_token": {
+            "type": "string"
+          },
+          "reset_submission": {
+            "type": "boolean"
+          }
+        },
+        "dependentRequired": {
+          "warnings": ["warning_token"],
+          "warning_token": ["warnings"]
+        }
+      },
+      "AuditSnapshot": {
+        "type": ["object", "null"],
+        "description": "Instantánea informativa, no un modelo de escritura. Puede incluir metadatos y nuevos campos. Las fechas históricas pueden ser date o date-time y los horarios HH:mm:ss. Nunca debe contener contraseñas, hashes de contraseña ni tokens de sesión/recuperación."
+      },
+      "AuditEvent": {
+        "type": "object",
+        "required": [
+          "id",
+          "user_id",
+          "entity",
+          "entity_id",
+          "action",
+          "before_data",
+          "after_data",
+          "created_at",
+          "user_name"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/DecimalId"
+          },
+          "user_id": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "entity": {
+            "type": "string",
+            "enum": ["records", "employees", "places", "owners", "users"]
+          },
+          "entity_id": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "action": {
+            "type": "string",
+            "description": "Actualmente create/update/delete, bootstrap, local_password_reset y password_reset; conservar valores desconocidos al mostrar auditoría."
+          },
+          "before_data": {
+            "$ref": "#/components/schemas/AuditSnapshot"
+          },
+          "after_data": {
+            "$ref": "#/components/schemas/AuditSnapshot"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "user_name": {
+            "type": "string"
+          }
+        }
+      },
+      "RecordAuditEvent": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/AuditEvent"
+          },
+          {
+            "type": "object",
+            "required": ["user_email"],
+            "properties": {
+              "user_email": {
+                "type": "string",
+                "format": "email"
+              }
+            }
+          }
+        ]
+      },
+      "Notification": {
+        "type": "object",
+        "required": [
+          "id",
+          "record_id",
+          "audit_id",
+          "reason",
+          "details",
+          "reviewed_by",
+          "reviewed_at",
+          "created_at",
+          "user_name",
+          "employee_name",
+          "place_name",
+          "record_date",
+          "deleted_at",
+          "before_data",
+          "after_data"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/DecimalId"
+          },
+          "record_id": {
+            "$ref": "#/components/schemas/Uuid"
+          },
+          "audit_id": {
+            "$ref": "#/components/schemas/DecimalId"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/NotificationReason"
+          },
+          "details": {
+            "type": "object",
+            "properties": {
+              "warnings": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Warning"
+                }
+              }
+            }
+          },
+          "reviewed_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reviewed_at": {
+            "type": ["string", "null"],
+            "format": "date-time"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "user_name": {
+            "type": "string"
+          },
+          "employee_name": {
+            "type": "string"
+          },
+          "place_name": {
+            "type": "string"
+          },
+          "record_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "deleted_at": {
+            "type": ["string", "null"],
+            "format": "date-time"
+          },
+          "before_data": {
+            "$ref": "#/components/schemas/AuditSnapshot"
+          },
+          "after_data": {
+            "$ref": "#/components/schemas/AuditSnapshot"
+          }
+        }
+      },
+      "NotificationPage": {
+        "type": "object",
+        "required": ["notifications", "count", "page"],
+        "properties": {
+          "notifications": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "$ref": "#/components/schemas/Notification"
+            }
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "SignupInput": {
+        "type": "object",
+        "required": ["name", "email", "password"],
+        "properties": {
+          "name": {
+            "$ref": "#/components/schemas/Name"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "maxLength": 200
+          },
+          "password": {
+            "$ref": "#/components/schemas/Password"
+          }
+        }
+      }
+    }
+  }
+}

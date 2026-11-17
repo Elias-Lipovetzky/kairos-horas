@@ -1,0 +1,48 @@
+.date-field {
+  display: block;
+  position: relative;
+  min-width: 0;
+}
+.date-field input[data-date-input] {
+  margin: 0;
+  padding-right: 48px;
+}
+/* The native control receives the tap directly, including over plain LAN HTTP. */
+.date-field input[data-date-picker] {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 44px;
+  height: 100%;
+  min-height: 44px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  cursor: pointer;
+  z-index: 1;
+}
+.date-field input[data-date-picker]::-webkit-calendar-picker-indicator {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+.date-calendar-icon {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 44px;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  color: var(--blue);
+  pointer-events: none;
+}
+.date-field:has(input[data-date-picker]:focus-visible) {
+  outline: 3px solid #a6bfee;
+  outline-offset: 2px;
+  border-radius: 9px;
+}

@@ -1,0 +1,13 @@
+{
+  "printWidth": 100,
+  "singleQuote": true,
+  "trailingComma": "all",
+  "embeddedLanguageFormatting": "auto",
+  "proseWrap": "always",
+  "overrides": [
+    {
+      "files": ["*.svg", "*.xml"],
+      "options": { "parser": "html" }
+    }
+  ]
+}
