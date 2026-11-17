@@ -103,6 +103,15 @@ This option selects an existing running project; it does not create or reset a d
 database is running, start the previously existing deployment before retrying. Do not create a new
 project or remove volumes to work around this guard.
 
+If curl reports error 35 / Connection reset by peer immediately after Nginx starts, a readiness
+request may have reached Docker before Nginx was ready to complete a TLS handshake. The read-only
+checks now retry connection resets within a bounded budget, without disabling certificate checks or
+repeating login/certificate-issuance requests. A persistent failure still rolls back and prints the
+deployment stage and exit code. Proxy logs and the active Nginx configuration are saved privately
+alongside the rollback files before the old configuration is restored. Pull the latest main before
+retrying. If it continues, capture the stage/error and inspect those diagnostic files; do not delete
+database volumes.
+
 ## Cloudflare after HTTPS is verified
 
 You can re-enable the orange Proxied setting for the A record. Select SSL/TLS encryption mode Full
@@ -181,7 +190,7 @@ retained on disk for the next attempt; the previous renewal hook is restored.
 ## Repository checks
 
 ```bash
-bash -n scripts/enable-https.sh scripts/tls-renew-hook.sh scripts/rollback-https.sh
+bash -n scripts/enable-https.sh scripts/lib/tls-http.sh scripts/tls-renew-hook.sh scripts/rollback-https.sh
 python3 -B test/tls-state.test.py
 KAIROS_TLS_TEST=1 node --test test/tls-config.test.js
 ```

@@ -17,6 +17,7 @@ if (($#)); then
 fi
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 cd "$root"
+source "$root/scripts/lib/tls-http.sh"
 domain=kairoshoras.com
 origin=149.28.101.92
 helper="$root/scripts/tls-state.py"
@@ -64,11 +65,16 @@ echo "Existing project: $project; existing database volume: $volume"
 echo "Rollback: sudo bash scripts/rollback-https.sh $backup"
 
 changed=false
+phase='preparing HTTPS'
 rollback_on_error() {
-    result=$?
+    result=${1:-$?}
     trap - ERR
     if [[ "$changed" == true ]]; then
-        echo 'HTTPS setup failed. Restoring previous proxy and app configuration.' >&2
+        echo "HTTPS setup failed during: $phase (exit $result)." >&2
+        dc logs --no-color --tail=50 proxy >"$backup/proxy.failure.log" 2>&1 || true
+        dc exec -T proxy nginx -T >"$backup/nginx.failure.conf" 2>&1 || true
+        echo "Proxy diagnostic log: $backup/proxy.failure.log" >&2
+        echo 'Restoring previous proxy and app configuration.' >&2
         if ! python3 "$helper" rollback "$backup"; then
             echo "Automatic rollback failed. Keep $backup and use rollback-https.sh." >&2
         fi
@@ -91,6 +97,7 @@ mkdir -p /etc/letsencrypt/renewal-hooks/deploy
 files=(-f "$root/compose.yaml" -f "$root/compose.https.yaml" -f "$root/compose.https-bootstrap.yaml")
 dc() { docker compose --project-directory "$root" -p "$project" "${files[@]}" "$@"; }
 changed=true
+phase='starting the HTTP certificate-validation proxy'
 python3 "$helper" env "$root" "COMPOSE_PROJECT_NAME=$project" \
     'COMPOSE_FILE=compose.yaml:compose.https.yaml:compose.https-bootstrap.yaml' \
     'NGINX_CONFIG=./deploy/nginx/acme.conf'
@@ -102,11 +109,12 @@ probe="kairos-$(openssl rand -hex 12)"
 printf '%s' "$probe" >"/var/lib/kairos-acme/.well-known/acme-challenge/$probe"
 # The deployment's private umask must not hide this public validation file from Nginx workers.
 chmod 644 "/var/lib/kairos-acme/.well-known/acme-challenge/$probe"
-actual=$(curl --noproxy '*' --fail --silent --show-error --max-time 15 \
-    --retry 10 --retry-connrefused --retry-delay 1 --retry-max-time 30 \
-    "http://$domain/.well-known/acme-challenge/$probe")
+phase='waiting for the HTTP certificate-validation response'
+echo "$phase..."
+actual=$(tls_http_get "http://$domain/.well-known/acme-challenge/$probe") || rollback_on_error "$?"
 [[ "$actual" == "$probe" ]]
 rm -- "/var/lib/kairos-acme/.well-known/acme-challenge/$probe"
+phase="obtaining the Let's Encrypt certificate"
 (
     umask 022
     certbot certonly --webroot --webroot-path /var/lib/kairos-acme \
@@ -115,13 +123,15 @@ rm -- "/var/lib/kairos-acme/.well-known/acme-challenge/$probe"
 )
 
 python3 "$helper" env "$root" 'NGINX_CONFIG=./deploy/nginx/https.conf'
+phase='starting the HTTPS proxy'
 dc run --rm --no-deps proxy nginx -t
 dc up -d --no-deps --force-recreate proxy
-curl --noproxy '*' --fail --silent --show-error --max-time 15 \
-    --retry 10 --retry-connrefused --retry-delay 1 --retry-max-time 30 \
-    --resolve "$domain:443:127.0.0.1" "https://$domain/api/health"
+phase='waiting for the HTTPS origin to accept TLS connections'
+echo "$phase..."
+tls_http_get --resolve "$domain:443:127.0.0.1" "https://$domain/api/health" || rollback_on_error "$?"
 
 # Change application URL/cookie policy only after a trusted HTTPS response is available.
+phase='enabling and checking secure application sessions'
 python3 "$helper" env "$root" "APP_URL=https://$domain" 'COOKIE_SECURE=true'
 dc up -d --no-deps app
 dc exec -T app node --input-type=module <<'JS'
@@ -137,25 +147,24 @@ JS
 # App recreation can change its Docker IP. Refresh Nginx's upstream DNS resolution.
 dc exec -T proxy nginx -t
 dc exec -T proxy nginx -s reload
-curl --noproxy '*' --fail --silent --show-error --retry 3 --retry-delay 1 --max-time 15 \
-    --retry-connrefused \
-    --resolve "$domain:443:127.0.0.1" "https://$domain/api/health"
+tls_http_get --resolve "$domain:443:127.0.0.1" "https://$domain/api/health" || rollback_on_error "$?"
 status=$(curl --noproxy '*' --silent --show-error --output /dev/null --write-out '%{http_code}' \
-    --retry 3 --retry-connrefused --retry-delay 1 --max-time 15 \
-    --resolve "$domain:80:127.0.0.1" "http://$domain/")
+    --retry 10 --retry-all-errors --retry-max-time 30 --retry-delay 1 --max-time 10 \
+    --resolve "$domain:80:127.0.0.1" "http://$domain/") || rollback_on_error "$?"
 [[ "$status" == 308 ]]
 
 # The final override REPLACES the old port list rather than appending 80/443 to 8080.
+phase='removing public port 8080 and checking the public HTTPS endpoint'
 files=(-f "$root/compose.yaml" -f "$root/compose.https.yaml")
 python3 "$helper" env "$root" 'COMPOSE_FILE=compose.yaml:compose.https.yaml'
 python3 "$helper" verify-config "$root" "$project" "$volume"
 dc up -d --no-deps --force-recreate proxy
-curl --noproxy '*' --fail --silent --show-error --retry 3 --retry-delay 1 --max-time 15 \
-    --retry-connrefused \
-    "https://$domain/api/health"
+tls_http_get "https://$domain/api/health" || rollback_on_error "$?"
+phase='verifying the existing database and published ports'
 python3 "$helper" verify-live "$root" "$backup"
 
 python3 "$helper" hook "$root" "$project"
+phase='testing automatic certificate renewal'
 systemctl enable docker.service
 systemctl enable --now certbot.timer
 (

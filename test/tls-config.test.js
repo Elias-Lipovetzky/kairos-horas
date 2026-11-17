@@ -128,6 +128,41 @@ test(
         `,
           ],
         },
+        reset: {
+          profiles: ['probe'],
+          image: 'node:22-bookworm-slim',
+          command: [
+            'node',
+            '--input-type=module',
+            '-e',
+            `
+            import net from 'node:net';
+            let connections = 0;
+            net.createServer((socket) => {
+              if (connections++ === 0) { socket.resetAndDestroy(); return; }
+              const upstream = net.connect(443, 'proxy');
+              socket.pipe(upstream); upstream.pipe(socket);
+              socket.on('error', () => upstream.destroy());
+              upstream.on('error', () => socket.destroy());
+              socket.on('close', () => upstream.destroy());
+            }).listen(3443, '0.0.0.0');
+          `,
+          ],
+        },
+        probe: {
+          profiles: ['probe'],
+          image: 'curlimages/curl:8.14.1',
+          entrypoint: ['sh'],
+          volumes: [
+            {
+              type: 'bind',
+              source: join(root, 'scripts/lib/tls-http.sh'),
+              target: '/tls-http.sh',
+              read_only: true,
+            },
+            { type: 'bind', source: certificates, target: '/certificates', read_only: true },
+          ],
+        },
         proxy: {
           image: 'nginx:1.28-alpine',
           ports: ['127.0.0.1::80', '127.0.0.1::443'],
@@ -241,6 +276,49 @@ test(
         '/.well-known/acme-challenge/check',
       );
       assert.equal(httpsChallenge.body, 'challenge-proof');
+      await dc('up', '-d', '--no-deps', 'reset');
+      const retryScript =
+        '. /tls-http.sh; tls_http_get --cacert /certificates/live/kairoshoras.com/fullchain.pem ' +
+        '--connect-to kairoshoras.com:443:reset:3443 https://kairoshoras.com/api/health';
+      const recovered = await run(
+        'docker',
+        [
+          'compose',
+          '-p',
+          project,
+          '-f',
+          composeFile,
+          'run',
+          '--rm',
+          '-T',
+          '--no-deps',
+          'probe',
+          '-c',
+          retryScript,
+        ],
+        { cwd: root, timeout: 90000, maxBuffer: 4 * 1024 * 1024, windowsHide: true },
+      );
+      assert.equal(JSON.parse(recovered.stdout).headers['x-forwarded-proto'], 'https');
+      assert.match(
+        recovered.stderr,
+        /curl:\s*\((35|56)\)/,
+        'Fixture must reproduce a reset before successful retry',
+      );
+      await assert.rejects(
+        dc(
+          'run',
+          '--rm',
+          '-T',
+          '--no-deps',
+          '-e',
+          'KAIROS_HTTP_RETRIES=0',
+          'probe',
+          '-c',
+          '. /tls-http.sh; tls_http_get --cacert /certificates/live/kairoshoras.com/fullchain.pem ' +
+            '--connect-to invalid.example.test:443:proxy:443 https://invalid.example.test/api/health',
+        ),
+        (error) => error.code === 60 && /certificate/i.test(error.stderr),
+      );
       await generateCertificate();
       await dc('exec', '-T', 'proxy', 'nginx', '-t');
       await dc('exec', '-T', 'proxy', 'nginx', '-s', 'reload');

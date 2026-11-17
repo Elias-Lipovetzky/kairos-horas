@@ -46,7 +46,7 @@ jobs:
           node-version: '22'
       - name: Validar scripts y protección de secretos del despliegue HTTPS
         run: |
-          bash -n scripts/enable-https.sh scripts/tls-renew-hook.sh scripts/rollback-https.sh
+          bash -n scripts/enable-https.sh scripts/lib/tls-http.sh scripts/tls-renew-hook.sh scripts/rollback-https.sh
           python3 -B test/tls-state.test.py
       - name: Probar Nginx, TLS, ACME, redirección y recarga del certificado
         env:
