@@ -36,6 +36,14 @@ jobs:
         run: npm run format:check
       - name: Contrato, reglas de negocio e integración aislada
         run: npm test
+  https:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
       - name: Validar scripts y protección de secretos del despliegue HTTPS
         run: |
           bash -n scripts/enable-https.sh scripts/tls-renew-hook.sh scripts/rollback-https.sh
